@@ -29,6 +29,7 @@ jobs:
 
       - name: PC-Talker 体験版をインストール
         shell: pwsh
+        timeout-minutes: 20
         run: |
           New-Item -ItemType Directory -Force logs | Out-Null
           Invoke-WebRequest https://dl.pctalker.work/trial/pctalker.neo.trial.setup.exe -OutFile $env:RUNNER_TEMP\pctalker.exe
@@ -37,7 +38,26 @@ jobs:
           if ((Get-FileHash $env:RUNNER_TEMP\pctalker.exe -Algorithm SHA256).Hash -ne $expected) { throw 'インストーラーの SHA256 が一致しません' }
           # InstallShield のサイレントインストール(インストーラー自身のヘルプにある /S /v/qn)
           $msiLog = Join-Path $PWD 'logs\install-msi.log'
-          $p = Start-Process $env:RUNNER_TEMP\pctalker.exe -Wait -PassThru -ArgumentList "/S /v`"/qn /norestart /l*v \`"$msiLog\`"`""
+          $p = Start-Process $env:RUNNER_TEMP\pctalker.exe -PassThru -ArgumentList "/S /v`"/qn /norestart /l*v \`"$msiLog\`"`""
+          $deadline = (Get-Date).AddMinutes(10)
+          while (-not $p.HasExited -and (Get-Date) -lt $deadline) {
+            Start-Sleep 30
+            Write-Host "--- $(Get-Date -Format T)"
+            Get-Process | Where-Object { $_.ProcessName -match 'pctalker|setup|ISBEW|msiexec|PC-?Talker' -or $_.MainWindowTitle } |
+              Format-Table Id, ProcessName, MainWindowTitle -AutoSize | Out-String | Write-Host
+          }
+          if (-not $p.HasExited) {
+            # 固まっている原因を調べるため、画面とログを残してから失敗にする
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save((Join-Path $PWD 'logs\install-hang.png'))
+            Get-ChildItem $env:TEMP -Recurse -Include *.log, *.txt -ErrorAction SilentlyContinue |
+              Where-Object LastWriteTime -gt (Get-Date).AddMinutes(-15) |
+              Copy-Item -Destination logs -ErrorAction SilentlyContinue
+            throw 'インストールが 10 分以内に終わりませんでした'
+          }
           if ($p.ExitCode -notin 0, 3010) { throw "インストール失敗: $($p.ExitCode)" }
           Start-Sleep 15
           Get-Process | Where-Object ProcessName -match 'pctalker|pct' | Format-Table Id, ProcessName | Out-String | Tee-Object logs\install-processes.txt
