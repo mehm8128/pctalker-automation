@@ -1,0 +1,59 @@
+name: run-scenario
+
+# PC-Talker Neo Plus 体験版(90日間無料)をインストールして、シナリオを実行する実験用ワークフロー。
+# 体験版は「購入を検討しているかた」向けのため、定期実行はせず手動実行のみにしている。
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: シナリオ名
+        default: w3c
+      url:
+        description: 最初に Chrome で開く URL
+        default: https://www.w3.org/
+
+jobs:
+  run:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24.22.2
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: PC-Talker 体験版をインストール
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force logs | Out-Null
+          Invoke-WebRequest https://dl.pctalker.work/trial/pctalker.neo.trial.setup.exe -OutFile $env:RUNNER_TEMP\pctalker.exe
+          # 体験版の更新でハッシュが変わったら、失敗するので値を更新する
+          $expected = 'B97C6E4EC9EDB2AE2181C2E87F723B572769FB305EFD046FE1C240D56CE30C61'
+          if ((Get-FileHash $env:RUNNER_TEMP\pctalker.exe -Algorithm SHA256).Hash -ne $expected) { throw 'インストーラーの SHA256 が一致しません' }
+          # InstallShield のサイレントインストール(インストーラー自身のヘルプにある /S /v/qn)
+          $msiLog = Join-Path $PWD 'logs\install-msi.log'
+          $p = Start-Process $env:RUNNER_TEMP\pctalker.exe -Wait -PassThru -ArgumentList "/S /v`"/qn /norestart /l*v \`"$msiLog\`"`""
+          if ($p.ExitCode -notin 0, 3010) { throw "インストール失敗: $($p.ExitCode)" }
+          Start-Sleep 15
+          Get-Process | Where-Object ProcessName -match 'pctalker|pct' | Format-Table Id, ProcessName | Out-String | Tee-Object logs\install-processes.txt
+
+      - name: Chrome で対象ページを開く
+        shell: pwsh
+        run: |
+          Start-Process chrome '--no-first-run', '--no-default-browser-check', '${{ inputs.url }}'
+          Start-Sleep 10
+
+      - name: シナリオを実行
+        run: pnpm run-scenario ${{ inputs.scenario }} --out logs/run.jsonl --delay 3
+
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: logs
+          path: logs/
+          if-no-files-found: warn
