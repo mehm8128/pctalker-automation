@@ -1,20 +1,17 @@
 # pctalker-automation
 
-ARIA-AT の [aria-at-automation-driver](https://github.com/bocoup/aria-at-automation-driver) の WebSocket(キー送信)と、PC-Talker の「直前の読み上げをコピー」(Ctrl+Alt+S)を使い、PC-Talker を自動操作して読み上げログ(JSONL)を残すクライアント。
+robotjs によるキー送信と、PC-Talker の「直前の読み上げをコピー」(Ctrl+Alt+S)を使い、PC-Talker を自動操作して読み上げログ(JSONL)を残すクライアント。
 
 ## 前提(Windows)
 
-1. Node 22 と pnpm 12 を使う(`mise install` で `mise.toml` の版が入る)。ソースは TypeScript で、Node 22.18 以降ならそのまま実行できる。Node 23 以降では `@bocoup/windows-sapi-tts-engine-for-automation` の postinstall が失敗する。
-2. `robotjs` は Windows ではソースからビルドされるため、Visual Studio Build Tools(C++)、Python、`node-gyp`(`npm i -g node-gyp`)が必要。
-3. `pnpm install` を実行する(`@bocoup/windows-sapi-tts-engine-for-automation` が devDependencies に入っており、`pnpm-workspace.yaml` の `allowBuilds` で `robotjs` などのビルドを許可済み)。
-4. 別のターミナルで `pnpm at-driver` を実行して at-driver を起動する(キー送信にだけ使う。Bocoup 音声の設定は不要)。
-5. ブラウザで対象ページを開いておく。
+1. Node 22 と pnpm 12 を使う(`mise install` で `mise.toml` の版が入る)。ソースは TypeScript で、Node 22.18 以降ならそのまま実行できる。
+2. `pnpm install` を実行する(`robotjs` はビルド済みバイナリが使われるため、ビルドツールは不要)。
+3. ブラウザで対象ページを開いておく。
 
 ## 実行
 
 ```
 pnpm install
-pnpm at-driver   # 別ターミナルで起動したままにする
 pnpm run-scenario w3c
 ```
 

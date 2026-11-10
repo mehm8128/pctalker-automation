@@ -4,15 +4,15 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "at-driver": "at-driver",
     "run-scenario": "node src/run.ts",
     "typecheck": "tsc"
   },
+  "dependencies": {
+    "robotjs": "0.9.1"
+  },
   "devDependencies": {
-    "@bocoup/windows-sapi-tts-engine-for-automation": "0.0.4",
     "@types/node": "^22.20.5",
-    "typescript": "^7.0.2",
-    "ws": "^8.22.0"
+    "typescript": "^7.0.2"
   },
   "packageManager": "pnpm@12.14.0"
 }

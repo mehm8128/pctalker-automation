@@ -1,3 +1,2 @@
 allowBuilds:
-  '@bocoup/windows-sapi-tts-engine-for-automation': true
   robotjs: true

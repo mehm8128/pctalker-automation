@@ -1,8 +1,8 @@
-// 使い方: node src/run.ts <シナリオ名(例: w3c = scenarios/w3c.json)> [--url ws://127.0.0.1:4382/session] [--out logs/run.jsonl] [--delay 5] [--copy log|last]
+// 使い方: node src/run.ts <シナリオ名(例: w3c = scenarios/w3c.json)> [--out logs/run.jsonl] [--delay 5] [--copy log|last]
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
-import { DEFAULT_URL, DriverClient } from './driver-client.ts';
+import { chord } from './keyboard.ts';
 import { StepLog } from './step-log.ts';
 import { windowsClipboard, type WindowsClipboard } from './clipboard.ts';
 
@@ -43,7 +43,6 @@ const STALL_COUNT = 3; // 同じ読み上げがこの回数続いたら、キー
 // copy: 'last' は直前の読み上げ(Ctrl+Alt+S)、'log' は音声ログ(Ctrl+Alt+Win+S)の最終行を取得する。
 // Chrome/Firefox では Ctrl+Alt+S が「ページ全体のコピー」になるため 'log' を使う(CLI の既定)。
 export async function runScenario(
-  client: DriverClient,
   scenario: Scenario,
   logPath: string,
   { clipboard = windowsClipboard, copy = 'last' }: { clipboard?: Pick<WindowsClipboard, 'clear' | 'read'>; copy?: string } = {},
@@ -53,7 +52,7 @@ export async function runScenario(
   let lastText = '';
   const copyOnce = async (step: Step) => {
     await clipboard.clear();
-    await client.chord(step.copyLog || copy === 'log' ? COPY_SPEECH_LOG : COPY_LAST_SPEECH);
+    chord(step.copyLog || copy === 'log' ? COPY_SPEECH_LOG : COPY_LAST_SPEECH);
     let text = '';
     for (let waited = 0; !text && waited < CLIPBOARD_TIMEOUT_MS; waited += 50) {
       await sleep(50);
@@ -65,14 +64,14 @@ export async function runScenario(
   const attempt = async (step: Step): Promise<string[]> => {
     // copy: false は読み上げをコピーしない(連続読み上げ中にコピー用の Win キーを送るとスタートメニューが開くため)
     if (step.copy === false) {
-      await client.chord(step.keys);
+      chord(step.keys);
       await sleep(step.waitMs ?? 1000);
       return [];
     }
     // 読み上げが前回から変わるまで待つ(固定待ちだと 1 つ前の読み上げを拾ってしまう)。
     // waitMs は変化を待つ上限。変化しなければ上限で同じ読み上げとして扱う。
     const maxWait = step.waitMs ?? scenario.waitMs ?? 1500;
-    await client.chord(step.keys);
+    chord(step.keys);
     const start = Date.now();
     let text = '';
     // コピー操作自体がキー入力(Win キーを含む)なので、回数を最小限にする
@@ -116,7 +115,6 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: {
-      url: { type: 'string', default: DEFAULT_URL },
       out: { type: 'string', default: `logs/run-${Date.now()}.jsonl` },
       delay: { type: 'string', default: '5' },
       copy: { type: 'string', default: 'log' },
@@ -130,14 +128,12 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const arg = positionals[0];
   const scenarioPath = /[\\/]|\.json$/.test(arg) ? arg : `scenarios/${arg}.json`;
   const scenario = JSON.parse(await readFile(scenarioPath, 'utf8'));
-  const client = await DriverClient.connect(values.url);
   // キーはフォーカス中のウィンドウに送られるため、ブラウザへ切り替える猶予を設ける
   for (let s = Number(values.delay); s > 0; s--) {
     console.error(`${s} 秒後に開始します。ブラウザのページをクリックして、フォーカスを移してください`);
     await sleep(1000);
   }
-  const results = await runScenario(client, scenario, values.out, { copy: values.copy });
-  client.close();
+  const results = await runScenario(scenario, values.out, { copy: values.copy });
   windowsClipboard.close();
   console.log(JSON.stringify(results, null, 2));
   console.error(`ログ: ${values.out}`);
