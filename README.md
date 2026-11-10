@@ -4,7 +4,7 @@ robotjs によるキー送信と、PC-Talker の「直前の読み上げをコ�
 
 ## 前提(Windows)
 
-1. Node 22 と pnpm 12 を使う(`mise install` で `mise.toml` の版が入る)。ソースは TypeScript で、Node 22.18 以降ならそのまま実行できる。
+1. Node 24 と pnpm 12 を使う(`mise install` で `mise.toml` の版が入る)。ソースは TypeScript で、Node 24ならそのまま実行できる。
 2. `pnpm install` を実行する(`robotjs` はビルド済みバイナリが使われるため、ビルドツールは不要)。
 3. ブラウザで対象ページを開いておく。
 

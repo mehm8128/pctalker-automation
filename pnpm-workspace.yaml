@@ -1,2 +1,3 @@
 allowBuilds:
   robotjs: true
+minimumReleaseAge: 4320
