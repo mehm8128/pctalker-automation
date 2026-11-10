@@ -39,24 +39,33 @@ jobs:
           # InstallShield のサイレントインストール(インストーラー自身のヘルプにある /S /v/qn)
           $msiLog = Join-Path $PWD 'logs\install-msi.log'
           $p = Start-Process $env:RUNNER_TEMP\pctalker.exe -PassThru -ArgumentList "/S /v`"/qn /norestart /l*v \`"$msiLog\`"`""
-          $deadline = (Get-Date).AddMinutes(10)
-          while (-not $p.HasExited -and (Get-Date) -lt $deadline) {
-            Start-Sleep 30
-            Write-Host "--- $(Get-Date -Format T)"
-            Get-Process | Where-Object { $_.ProcessName -match 'pctalker|setup|ISBEW|msiexec|PC-?Talker' -or $_.MainWindowTitle } |
-              Format-Table Id, ProcessName, MainWindowTitle -AutoSize | Out-String | Write-Host
-          }
-          if (-not $p.HasExited) {
-            # 固まっている原因を調べるため、画面とログを残してから失敗にする
+          # 途中で Cancel されても原因が分かるよう、診断情報は1分ごとと打ち切り時に保存する
+          function Save-Diag($name) {
             Add-Type -AssemblyName System.Windows.Forms, System.Drawing
             $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
             $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
             [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
-            $bmp.Save((Join-Path $PWD 'logs\install-hang.png'))
-            Get-ChildItem $env:TEMP -Recurse -Include *.log, *.txt -ErrorAction SilentlyContinue |
-              Where-Object LastWriteTime -gt (Get-Date).AddMinutes(-15) |
-              Copy-Item -Destination logs -ErrorAction SilentlyContinue
-            throw 'インストールが 10 分以内に終わりませんでした'
+            $bmp.Save((Join-Path $PWD "logs\$name.png"))
+            Get-CimInstance Win32_Process | Where-Object Name -match 'pctalker|setup|ISBEW|msiexec' |
+              Select-Object ProcessId, ParentProcessId, Name, CommandLine | Format-List | Out-String | Set-Content "logs\$name-processes.txt"
+            Get-Process | Where-Object ProcessName -match 'pctalker|setup|ISBEW|msiexec' |
+              Select-Object Id, ProcessName, CPU, HandleCount, Responding | Format-Table | Out-String | Add-Content "logs\$name-processes.txt"
+            Get-NetTCPConnection -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -in (Get-Process | Where-Object ProcessName -match 'pctalker|setup|ISBEW|msiexec').Id } |
+              Format-Table | Out-String | Set-Content "logs\$name-net.txt"
+            Get-ChildItem $env:TEMP -Recurse -Include *.log, *.txt, *.iss -ErrorAction SilentlyContinue |
+              Where-Object LastWriteTime -gt (Get-Date).AddMinutes(-15) | Copy-Item -Destination logs -ErrorAction SilentlyContinue
+          }
+          $deadline = (Get-Date).AddMinutes(5)
+          while (-not $p.HasExited -and (Get-Date) -lt $deadline) {
+            Start-Sleep 60
+            Write-Host "--- $(Get-Date -Format T)"
+            Get-Process | Where-Object { $_.ProcessName -match 'pctalker|setup|ISBEW|msiexec|PC-?Talker' -or $_.MainWindowTitle } |
+              Format-Table Id, ProcessName, MainWindowTitle -AutoSize | Out-String | Write-Host
+            if (-not $p.HasExited) { Save-Diag 'diag-latest' }
+          }
+          if (-not $p.HasExited) {
+            Save-Diag 'diag-timeout'
+            throw 'インストールが 5 分以内に終わりませんでした'
           }
           if ($p.ExitCode -notin 0, 3010) { throw "インストール失敗: $($p.ExitCode)" }
           Start-Sleep 15
