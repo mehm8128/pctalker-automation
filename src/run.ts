@@ -10,6 +10,7 @@ export interface Step {
   name?: string;
   keys: string[];
   expect?: string | string[];
+  expectNot?: string | string[];
   until?: string;
   maxRepeat?: number;
   waitMs?: number;
@@ -101,7 +102,10 @@ export async function runScenario(
     const result: StepResult = { index, name: step.name ?? step.keys.join('+'), keys: step.keys, presses, speech };
     if (step.until !== undefined) result.reached = spoken().includes(step.until);
     if (stalled) result.stalled = true;
-    if (step.expect !== undefined) result.pass = ([] as string[]).concat(step.expect).every((s) => spoken().includes(s));
+    if (step.expect !== undefined || step.expectNot !== undefined) {
+      const list = (v?: string | string[]) => ([] as string[]).concat(v ?? []);
+      result.pass = list(step.expect).every((s) => spoken().includes(s)) && !list(step.expectNot).some((s) => spoken().includes(s));
+    }
     if (result.reached === false) result.pass = false;
     results.push(result);
     await log.logStep(result);
