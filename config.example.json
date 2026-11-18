@@ -1,8 +1,8 @@
 {
   "as_info_path": "../as_info",
   "scenarios_path": "../as_test/scenarios",
-  "user_agent": "Chrome 142",
-  "assistive_tech": "PC-Talker Neo 2609 ビルド75",
+  "user_agent": "Chrome 157",
+  "assistive_tech": "PC-Talker Neo 2610 ビルド77",
   "assistive_tech_config": "",
   "tester": "your-name"
 }

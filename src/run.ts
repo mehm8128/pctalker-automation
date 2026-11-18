@@ -176,7 +176,6 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     await sleep(500);
   }
   windowsClipboard.close();
-  console.log(JSON.stringify(results, null, 2));
   console.error(`ログ: ${values.out}`);
   process.exit(results.some((r) => r.reached === false) ? 1 : 0);
 }
