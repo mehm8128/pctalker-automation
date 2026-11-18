@@ -1,8 +1,9 @@
-// 使い方: node src/run.ts <シナリオ名(例: w3c = scenarios/w3c.json) | シナリオのディレクトリ(<ID>/pc-talker.json を全て実行)> [--out logs/run-xxx] [--delay 5] [--copy log|last]
+// 使い方: node src/run.ts [シナリオの JSON | シナリオのディレクトリ(<ID>/pc-talker.json を全て実行)。省略すると設定ファイルの scenarios_path] [--out logs/run-xxx] [--delay 5] [--copy log|last] [--config config.json]
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import { writeAsInfo, type AsInfoConfig } from './as-info.ts';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { chord } from './keyboard.ts';
@@ -124,21 +125,28 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
       out: { type: 'string', default: `logs/run-${Date.now()}` },
       delay: { type: 'string', default: '5' },
       copy: { type: 'string', default: 'log' },
+      config: { type: 'string', default: 'config.json' },
     },
   });
-  if (!positionals[0]) {
-    console.error('シナリオ名またはシナリオのディレクトリを指定してください(例: w3c)');
+  if (!existsSync(values.config)) {
+    console.error(`設定ファイル ${values.config} がありません。config.example.json をコピーして作成してください`);
     process.exit(2);
   }
-  // 名前だけ(例: w3c)なら scenarios/<名前>.json として扱う。ディレクトリなら、直下の <ID>/pc-talker.json を全て流す
-  const arg = positionals[0];
+  const config: AsInfoConfig = JSON.parse(await readFile(values.config, 'utf8'));
+  // 引数を省略すると、設定ファイルの scenarios_path を使う
+  const arg = positionals[0] ?? config.scenarios_path;
+  if (!arg) {
+    console.error('シナリオの JSON またはシナリオのディレクトリを、引数か設定ファイルの scenarios_path で指定してください');
+    process.exit(2);
+  }
+  // ディレクトリなら、直下の <ID>/pc-talker.json を全て流す
   const scenarioPaths = (await stat(arg).then((s) => s.isDirectory(), () => false))
     ? (await readdir(arg, { withFileTypes: true }))
         .filter((e) => e.isDirectory())
         .map((e) => join(arg, e.name, 'pc-talker.json'))
         .filter((p) => existsSync(p))
         .sort()
-    : [/[\\/]|\.json$/.test(arg) ? arg : `scenarios/${arg}.json`];
+    : [arg];
   if (!scenarioPaths.length) {
     console.error(`${arg} に <ID>/pc-talker.json がありません`);
     process.exit(2);
@@ -157,7 +165,12 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
       }
     }
     const fileName = basename(scenarioPath) === 'pc-talker.json' ? basename(dirname(scenarioPath)) : basename(scenarioPath, '.json');
-    results.push(...(await runScenario(scenario, join(values.out, `${scenario.testId ?? fileName}.jsonl`), { copy: values.copy })));
+    const name = scenario.testId ?? fileName;
+    const scenarioResults = await runScenario(scenario, join(values.out, `${name}.jsonl`), { copy: values.copy });
+    results.push(...scenarioResults);
+    // as_info の結果として書き込む(judgment は人間が書く)
+    const asInfoPath = await writeAsInfo(scenario, scenarioResults, config, new Date().toLocaleDateString('sv'));
+    console.error(`as_info: ${asInfoPath}`);
     // 終わったページのタブを閉じる(開いたタブにフォーカスがある前提)
     chord(['control', 'w']);
     await sleep(500);

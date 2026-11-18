@@ -12,13 +12,36 @@ robotjs によるキー送信と、PC-Talker の「直前の読み上げをコ�
 
 ```
 pnpm install
-pnpm run-scenario w3c
+pnpm run-scenario
 ```
 
-シナリオ名の指定は必須(例: `pnpm run-scenario w3c` で `scenarios/w3c.json`)。パス付きでも指定できる。ログは実行ごとのディレクトリ(`--out` で指定。省略すると `logs/run-<タイムスタンプ>`)に、シナリオごとのファイル(`<testId>.jsonl`。`testId` がなければファイル名やディレクトリ名)として出力する。
+実行するシナリオは、設定ファイルの `scenarios_path` に書く。引数でシナリオの JSON ファイルかディレクトリを指定すると、設定を上書きできる(例: `pnpm run-scenario ..\as_test\scenarios\WAIC-TEST-0001-01\pc-talker.json` で 1 件だけ実行)。ディレクトリを指定すると、直下の `<ID>/pc-talker.json` を ID 順に全て実行する。ログは実行ごとのディレクトリ(`--out` で指定。省略すると `logs/run-<タイムスタンプ>`)に、シナリオごとのファイル(`<testId>.jsonl`。`testId` がなければファイル名やディレクトリ名)として出力する。
 
-ディレクトリを指定すると、直下の `<ID>/pc-talker.json` を ID 順に全て実行し、(例: `pnpm run-scenario ..\as_test\scenarios`)。シナリオの `url`(必須)を既定のブラウザーで開き、`testId` / `title` があればログに記録する。`until` に着かなかったシナリオは、そこで打ち切って次のシナリオへ進む。各シナリオが終わると `Ctrl+W` でそのタブを閉じる(フォーカスが別ウィンドウにあると、そちらのタブが閉じる)。
+シナリオの `url`(必須)を既定のブラウザーで開き、`testId` / `title` があればログに記録する。`until` に着かなかったシナリオは、そこで打ち切って次のシナリオへ進む。各シナリオが終わると `Ctrl+W` でそのタブを閉じる(フォーカスが別ウィンドウにあると、そちらのタブが閉じる)。
 実行すると、最初の 1 回だけ `--delay`(既定 5 秒)のあいだ待つので、その間にブラウザのページをクリックしてフォーカスを移す。キーはフォーカス中のウィンドウに送られる。
+
+## 設定ファイルと as_info への出力
+
+実行前に、`config.example.json` をコピーして `config.json`(git 管理外。`--config` で別のパスも指定できる)を作り、環境に合わせて書く。
+
+| キー | 内容 |
+| --- | --- |
+| `as_info_path` | as_info リポジトリのルート(例: `../as_info`。実行時のカレントディレクトリからの相対パスも可) |
+| `scenarios_path` | 実行するシナリオの JSON またはディレクトリ(例: `../as_test/scenarios`。引数で上書き可) |
+| `user_agent` | ブラウザーの種類とバージョン(例: `Chrome 142`) |
+| `assistive_tech` | PC-Talker の名称とバージョン |
+| `assistive_tech_config` | 支援技術の設定(空文字なら YAML でも空欄) |
+| `tester` | 検証者名 |
+
+`os` は実行時に取得し(Windows 11 / 10)、`environment_type` は `音声閲覧環境` 固定なので、設定は不要。
+
+シナリオが終わるたびに、結果を `<as_info_path>/src/content/results/` 配下へ as_info の形式の YAML として書き込む。
+
+- `id` は既存ファイルの最大値 + 1 を自動採番し、100 件ごとのグループに振り分ける(例: id 712 → `0701/0712.yaml`)。
+- `test` は `testId` から `WAIC-TEST-` を除いたもの。
+- `contents` の `procedure` はステップ名、`actual` は読み上げ。
+- `judgment` は空欄で出力するので、人間が `○` などを書き込む。
+- as_info を直接書き換えるので、実行前に as_info の git の状態を確認する。
 
 ## シナリオ
 
@@ -32,7 +55,7 @@ pnpm run-scenario w3c
 
 キー送信後、読み上げが前回のステップと変わるまでコピーを繰り返し、変わったら、その読み上げを採用する。読み上げが前回と同じになるステップは、上限まで待ってから同じ内容として扱う。クリップボードの読み取りは、常駐させた Windows の PowerShell で行う。
 
-例: `scenarios/w3c.json`
+例: as_test の `scenarios/<ID>/pc-talker.json`
 
 書くときの注意点は [docs/scenario-guide.md](docs/scenario-guide.md) を参照。
 
@@ -43,14 +66,14 @@ pnpm run-scenario w3c
 Ctrl+Alt+S が使える環境では `--copy last` を指定する。
 
 ```
-pnpm run-scenario w3c --copy last
+pnpm run-scenario --copy last
 ```
 
 ## ログ
 
 各行が JSON: `time`, `type`, `index`, `name`, `keys`, `presses`, `speech`(取得した読み上げ), `reached`/`stalled`。
 
-`pnpm run-scenario w3c` で https://www.w3.org/ を操作したときの出力例(抜粋、`time` と `type` は省略):
+w3c.org を操作したときの出力例(抜粋、`time` と `type` は省略):
 
 ```jsonl
 {"index":0,"name":"[Home] 仮想カーソルをページの先頭へ","keys":["home"],"presses":1,"speech":["Skip to content "]}

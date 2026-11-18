@@ -1,6 +1,6 @@
 # シナリオ作成の注意点
 
-実機での試行から分かったことをまとめる。`scenarios/w3c.json` が例。
+実機での試行から分かったことをまとめる。シナリオの例は as_test の `scenarios/<ID>/pc-talker.json`。
 
 ## 前提
 
@@ -44,3 +44,4 @@
 ## 実行時の注意
 
 - 実行すると、最初の 1 回だけ `--delay`(既定 5 秒)のあいだ待つ。その間にブラウザーのページをクリックしてフォーカスを移す。
+- 実行前に `config.json`(`config.example.json` を参照)を用意する。シナリオごとに、結果が as_info の `src/content/results/` へ YAML として書き込まれる(`id` は自動採番)。`judgment` は空欄なので、人間が書き込む。as_info を直接書き換えるため、実行前に as_info の git の状態を確認する。
