@@ -1,5 +1,8 @@
-// 使い方: node src/run.ts <シナリオ名(例: w3c = scenarios/w3c.json)> [--out logs/run.jsonl] [--delay 5] [--copy log|last]
-import { readFile } from 'node:fs/promises';
+// 使い方: node src/run.ts <シナリオ名(例: w3c = scenarios/w3c.json) | シナリオのディレクトリ(<ID>/pc-talker.json を全て実行)> [--out logs/run-xxx] [--delay 5] [--copy log|last]
+import { existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { readdir, readFile, stat } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { chord } from './keyboard.ts';
@@ -9,8 +12,6 @@ import { windowsClipboard, type WindowsClipboard } from './clipboard.ts';
 export interface Step {
   name?: string;
   keys: string[];
-  expect?: string | string[];
-  expectNot?: string | string[];
   until?: string;
   maxRepeat?: number;
   waitMs?: number;
@@ -19,11 +20,16 @@ export interface Step {
 }
 
 export interface Scenario {
+  testId?: string;
+  title?: string;
+  url: string;
   waitMs?: number;
   steps: Step[];
 }
 
 export interface StepResult {
+  testId?: string;
+  title?: string;
   index: number;
   name: string;
   keys: string[];
@@ -31,7 +37,6 @@ export interface StepResult {
   speech: string[];
   reached?: boolean;
   stalled?: boolean;
-  pass?: boolean;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -100,13 +105,10 @@ export async function runScenario(
       }
     }
     const result: StepResult = { index, name: step.name ?? step.keys.join('+'), keys: step.keys, presses, speech };
+    if (scenario.testId !== undefined) result.testId = scenario.testId;
+    if (scenario.title !== undefined) result.title = scenario.title;
     if (step.until !== undefined) result.reached = spoken().includes(step.until);
     if (stalled) result.stalled = true;
-    if (step.expect !== undefined || step.expectNot !== undefined) {
-      const list = (v?: string | string[]) => ([] as string[]).concat(v ?? []);
-      result.pass = list(step.expect).every((s) => spoken().includes(s)) && !list(step.expectNot).some((s) => spoken().includes(s));
-    }
-    if (result.reached === false) result.pass = false;
     results.push(result);
     await log.logStep(result);
     if (result.reached === false) break; // 目的の要素に着いていないまま Enter 等を送らない
@@ -119,27 +121,49 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: {
-      out: { type: 'string', default: `logs/run-${Date.now()}.jsonl` },
+      out: { type: 'string', default: `logs/run-${Date.now()}` },
       delay: { type: 'string', default: '5' },
       copy: { type: 'string', default: 'log' },
     },
   });
   if (!positionals[0]) {
-    console.error('シナリオ名を指定してください(例: w3c)');
+    console.error('シナリオ名またはシナリオのディレクトリを指定してください(例: w3c)');
     process.exit(2);
   }
-  // 名前だけ(例: w3c)なら scenarios/<名前>.json として扱う
+  // 名前だけ(例: w3c)なら scenarios/<名前>.json として扱う。ディレクトリなら、直下の <ID>/pc-talker.json を全て流す
   const arg = positionals[0];
-  const scenarioPath = /[\\/]|\.json$/.test(arg) ? arg : `scenarios/${arg}.json`;
-  const scenario = JSON.parse(await readFile(scenarioPath, 'utf8'));
-  // キーはフォーカス中のウィンドウに送られるため、ブラウザへ切り替える猶予を設ける
-  for (let s = Number(values.delay); s > 0; s--) {
-    console.error(`${s} 秒後に開始します。ブラウザのページをクリックして、フォーカスを移してください`);
-    await sleep(1000);
+  const scenarioPaths = (await stat(arg).then((s) => s.isDirectory(), () => false))
+    ? (await readdir(arg, { withFileTypes: true }))
+        .filter((e) => e.isDirectory())
+        .map((e) => join(arg, e.name, 'pc-talker.json'))
+        .filter((p) => existsSync(p))
+        .sort()
+    : [/[\\/]|\.json$/.test(arg) ? arg : `scenarios/${arg}.json`];
+  if (!scenarioPaths.length) {
+    console.error(`${arg} に <ID>/pc-talker.json がありません`);
+    process.exit(2);
   }
-  const results = await runScenario(scenario, values.out, { copy: values.copy });
+  const results: StepResult[] = [];
+  for (const [i, scenarioPath] of scenarioPaths.entries()) {
+    const scenario: Scenario = JSON.parse(await readFile(scenarioPath, 'utf8'));
+    console.error(`[${i + 1}/${scenarioPaths.length}] ${scenario.testId ?? scenarioPath} ${scenario.title ?? ''}`.trim());
+    // url を既定のブラウザーで開く
+    spawn('cmd.exe', ['/c', 'start', '', scenario.url], { stdio: 'ignore' }).unref();
+    // キーはフォーカス中のウィンドウに送られるため、最初の 1 回だけ、ブラウザへ切り替える猶予を設ける
+    if (i === 0) {
+      for (let s = Number(values.delay); s > 0; s--) {
+        console.error(`${s} 秒後に開始します。ブラウザのページをクリックして、フォーカスを移してください`);
+        await sleep(1000);
+      }
+    }
+    const fileName = basename(scenarioPath) === 'pc-talker.json' ? basename(dirname(scenarioPath)) : basename(scenarioPath, '.json');
+    results.push(...(await runScenario(scenario, join(values.out, `${scenario.testId ?? fileName}.jsonl`), { copy: values.copy })));
+    // 終わったページのタブを閉じる(開いたタブにフォーカスがある前提)
+    chord(['control', 'w']);
+    await sleep(500);
+  }
   windowsClipboard.close();
   console.log(JSON.stringify(results, null, 2));
   console.error(`ログ: ${values.out}`);
-  process.exit(results.some((r) => r.pass === false) ? 1 : 0);
+  process.exit(results.some((r) => r.reached === false) ? 1 : 0);
 }

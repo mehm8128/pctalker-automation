@@ -1,16 +1,17 @@
 {
+  "url": "https://www.w3.org/",
   "waitMs": 1500,
   "steps": [
     { "name": "[Home] 仮想カーソルをページの先頭へ", "keys": ["home"], "waitMs": 3000 },
 
-    { "name": "[H] 次の見出しへ(Working with stakeholders of the web)", "keys": ["h"], "until": "Working with stakeholders of the web", "expect": "Working with stakeholders of the web" },
-    { "name": "[H] 次の見出しへ(TPAC 2026)", "keys": ["h"], "until": "TPAC 2026", "expect": "TPAC 2026" },
-    { "name": "[H] 次の見出しへ(Web standards)", "keys": ["h"], "until": "Web standards", "expect": "Web standards" },
-    { "name": "[Shift+H] 前の見出しへ(TPAC 2026)", "keys": ["shift", "h"], "expect": "TPAC 2026" },
+    { "name": "[H] 次の見出しへ(Working with stakeholders of the web)", "keys": ["h"], "until": "Working with stakeholders of the web" },
+    { "name": "[H] 次の見出しへ(TPAC 2026)", "keys": ["h"], "until": "TPAC 2026" },
+    { "name": "[H] 次の見出しへ(Web standards)", "keys": ["h"], "until": "Web standards" },
+    { "name": "[Shift+H] 前の見出しへ(TPAC 2026)", "keys": ["shift", "h"] },
 
     { "name": "[Home] 仮想カーソルをページの先頭へ", "keys": ["home"] },
-    { "name": "[U] 次のリンクへ(E-commerce)", "keys": ["u"], "until": "E-commerce", "expect": "E-commerce" },
-    { "name": "[U] 次のリンクへ(Media & Entertainment)", "keys": ["u"], "until": "Media", "expect": "Media" },
-    { "name": "[Shift+U] 前のリンクへ(E-commerce)", "keys": ["shift", "u"], "expect": "E-commerce" }
+    { "name": "[Tab] 次のリンクへ(E-commerce)", "keys": ["tab"], "until": "E-commerce", "maxRepeat": 80 },
+    { "name": "[Tab] 次のリンクへ(Media & Entertainment)", "keys": ["tab"], "until": "Media" },
+    { "name": "[Shift+Tab] 前のリンクへ(E-commerce)", "keys": ["shift", "tab"] }
   ]
 }

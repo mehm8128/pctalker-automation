@@ -15,16 +15,16 @@ pnpm install
 pnpm run-scenario w3c
 ```
 
-シナリオ名の指定は必須(例: `pnpm run-scenario w3c` で `scenarios/w3c.json`)。パス付きでも指定できる。`--out` を省略すると `logs/run-<タイムスタンプ>.jsonl` に出力する。
-実行すると `--delay`(既定 5 秒)のあいだ待つので、その間にブラウザのページをクリックしてフォーカスを移す。キーはフォーカス中のウィンドウに送られる。
+シナリオ名の指定は必須(例: `pnpm run-scenario w3c` で `scenarios/w3c.json`)。パス付きでも指定できる。ログは実行ごとのディレクトリ(`--out` で指定。省略すると `logs/run-<タイムスタンプ>`)に、シナリオごとのファイル(`<testId>.jsonl`。`testId` がなければファイル名やディレクトリ名)として出力する。
+
+ディレクトリを指定すると、直下の `<ID>/pc-talker.json` を ID 順に全て実行し、(例: `pnpm run-scenario ..\as_test\scenarios`)。シナリオの `url`(必須)を既定のブラウザーで開き、`testId` / `title` があればログに記録する。`until` に着かなかったシナリオは、そこで打ち切って次のシナリオへ進む。各シナリオが終わると `Ctrl+W` でそのタブを閉じる(フォーカスが別ウィンドウにあると、そちらのタブが閉じる)。
+実行すると、最初の 1 回だけ `--delay`(既定 5 秒)のあいだ待つので、その間にブラウザのページをクリックしてフォーカスを移す。キーはフォーカス中のウィンドウに送られる。
 
 ## シナリオ
 
 各ステップは次を持つ。キー名は robotjs の表記。PC-Talker のショートカットキーは[マニュアル](https://pctalker.net/download/manuals/pctalker.neo/pctalker_manual.pdf)で確認する。
 
 - `keys`: 修飾キー→通常キーの順に押下する。
-- `expect`: 読み上げに含まれるべき文字列(任意)。含まれなければ `pass: false`。
-- `expectNot`: 読み上げに含まれてはならない文字列(任意、文字列または配列)。含まれていれば `pass: false`。`expect` と併用できる。
 - `until`: 読み上げにその文字列が出るまでキーを繰り返す(任意、最大 `maxRepeat` 回、既定 10)。出なければ失敗扱い。同じ読み上げが 3 回続くと、キーが効いていないとみなして打ち切る(`stalled: true`)。
 - `waitMs`: 読み上げが前回から変わるまで待つ上限(既定 1500ms)。ページ遷移など遅いステップだけ増やす。トップレベルにも指定できる。
 - `copy`: `false` で、キーを送って `waitMs` 待つだけにし、コピーしない。連続読み上げ(`Ctrl+Alt+K` など)の後は、コピー用の Win キーでスタートメニューが開くため指定する。
@@ -48,16 +48,16 @@ pnpm run-scenario w3c --copy last
 
 ## ログ
 
-各行が JSON: `time`, `type`, `index`, `name`, `keys`, `presses`, `speech`(取得した読み上げ), `reached`/`stalled`/`pass`。
+各行が JSON: `time`, `type`, `index`, `name`, `keys`, `presses`, `speech`(取得した読み上げ), `reached`/`stalled`。
 
 `pnpm run-scenario w3c` で https://www.w3.org/ を操作したときの出力例(抜粋、`time` と `type` は省略):
 
 ```jsonl
 {"index":0,"name":"[Home] 仮想カーソルをページの先頭へ","keys":["home"],"presses":1,"speech":["Skip to content "]}
-{"index":1,"name":"[H] 次の見出しへ(Working with stakeholders of the web)","keys":["h"],"presses":2,"speech":[" 見出し "," メインランドマーク Working with stakeholders of the web 見出しレベル2 "],"reached":true,"pass":true}
-{"index":2,"name":"[H] 次の見出しへ(TPAC 2026)","keys":["h"],"presses":1,"speech":["TPAC 2026 見出しレベル2 "],"reached":true,"pass":true}
-{"index":4,"name":"[Shift+H] 前の見出しへ(TPAC 2026)","keys":["shift","h"],"presses":1,"speech":["TPAC 2026 見出しレベル2 "],"pass":true}
-{"index":6,"name":"[U] 次のリンクへ(E-commerce)","keys":["u"],"presses":9,"speech":["日本語ホームページ ","简体中文首页 ","Search ","Sign in ","standards and guidelines ","privacy ","security ","Read more about W3C ","E-commerce "],"reached":true,"pass":true}
+{"index":1,"name":"[H] 次の見出しへ(Working with stakeholders of the web)","keys":["h"],"presses":2,"speech":[" 見出し "," メインランドマーク Working with stakeholders of the web 見出しレベル2 "],"reached":true}
+{"index":2,"name":"[H] 次の見出しへ(TPAC 2026)","keys":["h"],"presses":1,"speech":["TPAC 2026 見出しレベル2 "],"reached":true}
+{"index":4,"name":"[Shift+H] 前の見出しへ(TPAC 2026)","keys":["shift","h"],"presses":1,"speech":["TPAC 2026 見出しレベル2 "]}
+{"index":6,"name":"[U] 次のリンクへ(E-commerce)","keys":["u"],"presses":9,"speech":["日本語ホームページ ","简体中文首页 ","Search ","Sign in ","standards and guidelines ","privacy ","security ","Read more about W3C ","E-commerce "],"reached":true}
 ```
 
 `until` を指定したステップは、目的の読み上げが出るまでキーを繰り返す(`presses` が押下回数、`speech` が各回の読み上げ)。
