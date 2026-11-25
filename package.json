@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "run-scenario": "node src/run.ts",
+    "as-info": "node src/as-info-cli.ts",
     "typecheck": "tsc"
   },
   "dependencies": {
